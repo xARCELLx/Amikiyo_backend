@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables using os.environ with fallbacks
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'your-secret-key-here')  # Fallback for local testing
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'  # Convert to boolean
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,*.herokuapp.com').split(',')
+ALLOWED_HOSTS = ['*']  # Allow all IPs (ONLY for local dev!)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -40,11 +40,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
+    'corsheaders',
     'api',
 ]
 AUTH_USER_MODEL = 'api.User'
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -52,6 +54,20 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+CORS_ALLOW_ALL_ORIGINS = True  # ← TEMP FOR TESTING
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',  # ← THIS IS KEY
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
 
 ROOT_URLCONF = 'amikiyo_backend.urls'
