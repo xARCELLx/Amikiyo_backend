@@ -8,6 +8,8 @@ import firebase_admin
 from firebase_admin import auth
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 import logging
 
@@ -138,3 +140,18 @@ class PostCreateView(APIView):
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_my_profile(request):
+    try:
+        profile = Profile.objects.get(user=request.user)
+        serializer = ProfileSerializer(profile)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Profile.DoesNotExist:
+        return Response(
+            {'error': 'Profile not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
