@@ -129,3 +129,15 @@ class PostCreateView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_my_posts(request):
+    """
+    GET: Returns current user's posts
+    """
+    profile = request.user.profile
+    posts = profile.posts.all().order_by('-created_at')[:20]  # Last 20 posts
+    serializer = PostSerializer(posts, many=True)
+    return Response(serializer.data)

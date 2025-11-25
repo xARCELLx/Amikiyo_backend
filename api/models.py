@@ -7,13 +7,22 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
+
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=50, unique=True)
     bio = models.TextField(blank=True)
-    profile_image = models.URLField(blank=True)  # Firebase Storage URL
+    
+    # THIS IS THE ONLY CHANGE — USE ImageField, NOT URLField
+    profile_image = models.ImageField(
+        upload_to='profile_pics/',   # Saves to media/profile_pics/
+        blank=True,
+        null=True,
+        default='profile_pics/default.jpg'  # Optional: add a default avatar
+    )
+    
     followers = models.ManyToManyField('self', symmetrical=False, related_name='following')
-    anime_board = models.JSONField(default=dict)  # Top 3, watched, next-to-watch
+    anime_board = models.JSONField(default=dict)
 
     def __str__(self):
         return self.username

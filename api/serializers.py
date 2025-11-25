@@ -6,14 +6,41 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'firebase_uid', 'username', 'email']
 
+
+# serializers.py
+
+from rest_framework import serializers
+from .models import Profile
+
+
 class ProfileSerializer(serializers.ModelSerializer):
+    # THIS IS THE ONLY CORRECT WAY — forces full absolute URL
+    profile_image = serializers.ImageField(
+        use_url=True,                    # ← gives http://your-ip:8000/media/...
+        required=False,
+        allow_empty_file=False,          # prevents empty file errors
+    )
+
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
-    posts_count = serializers.SerializerMethodField()
+    posts_count     = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
-        fields = ['username', 'bio', 'profile_image', 'anime_board', 'followers_count', 'following_count', 'posts_count']
+        fields = [
+            'username',
+            'bio',
+            'profile_image',       # ← now returns FULL URL
+            'anime_board',
+            'followers_count',
+            'following_count',
+            'posts_count',
+        ]
+        extra_kwargs = {
+            'username':    {'required': False},
+            'bio':         {'required': False},
+            'anime_board': {'required': False},
+        }
 
     def get_followers_count(self, obj):
         return obj.followers.count()
