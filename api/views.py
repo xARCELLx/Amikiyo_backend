@@ -8,8 +8,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from rest_framework.authtoken.models import Token
 
-from .models import Profile, Post
+from .models import Profile, Post,User
 from .serializers import ProfileSerializer, PostSerializer
 from firebase_admin import auth
 
@@ -106,3 +107,34 @@ def get_my_posts(request):
     posts = profile.posts.all().order_by('-created_at')[:20]
     serializer = PostSerializer(posts, many=True, context={'request': request})  # CONTEXT ADDED
     return Response(serializer.data)
+
+
+# ====================== POST DELETE — THIS WAS MISSING ======================
+@api_view(['DELETE'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def delete_post(request, pk):
+    try:
+        post = Post.objects.get(id=pk, author=request.user.profile)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post not found or not yours'}, status=status.HTTP_404_NOT_FOUND)
+
+    post.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def search_users(request):
+    query = request.query_params.get('username', '').strip()
+    if not query:
+        return Response([], status=status.HTTP_200_OK)
+
+    # Explicit case-insensitive search
+    profiles = Profile.objects.filter(username__iexact=query) | Profile.objects.filter(username__icontains=query)
+    profiles = profiles.distinct()[:10]  # limit 10 results
+
+    serializer = ProfileSerializer(profiles, many=True, context={'request': request})
+    return Response(serializer.data, status=status.HTTP_200_OK)

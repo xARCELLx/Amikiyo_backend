@@ -10,6 +10,8 @@ from .views import (
     PostCreateView,
     get_my_profile,
     get_my_posts,
+    delete_post,
+    search_users
 )
 
 urlpatterns = [
@@ -18,6 +20,8 @@ urlpatterns = [
     path('posts/', PostCreateView.as_view(), name='post-create'),
     path('profiles/me/', get_my_profile, name='my-profile'),
     path('posts/user/me/', get_my_posts, name='my-posts'),
+    path('posts/<int:pk>/', delete_post, name='post-delete'),
+    path('profiles/search/', search_users, name='search-users'),
 ]
 
 # THIS IS THE ONLY THING THAT WAS MISSING — ADD THIS AT THE END
