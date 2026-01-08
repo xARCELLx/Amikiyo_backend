@@ -11,17 +11,21 @@ from .views import (
     get_my_profile,
     get_my_posts,
     delete_post,
-    search_users
+    search_users,
+    PublicProfileView,
+    login_view
 )
 
 urlpatterns = [
     path('users/', UserCreateView.as_view(), name='user-create'),
+    path('auth/login/', login_view, name='login'),
     path('users/<int:user_id>/', UserProfileView.as_view(), name='user-profile'),
     path('posts/', PostCreateView.as_view(), name='post-create'),
     path('profiles/me/', get_my_profile, name='my-profile'),
     path('posts/user/me/', get_my_posts, name='my-posts'),
     path('posts/<int:pk>/', delete_post, name='post-delete'),
     path('profiles/search/', search_users, name='search-users'),
+    path('profiles/<int:pk>/', PublicProfileView.as_view(), name='public-profile'),
 ]
 
 # THIS IS THE ONLY THING THAT WAS MISSING — ADD THIS AT THE END

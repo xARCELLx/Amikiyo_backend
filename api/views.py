@@ -138,3 +138,59 @@ def search_users(request):
 
     serializer = ProfileSerializer(profiles, many=True, context={'request': request})
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ====================== OTHER USER PROFILE ======================
+class PublicProfileView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            profile = Profile.objects.get(user__id=pk)
+            serializer = ProfileSerializer(profile, context={'request': request})
+            return Response(serializer.data)
+        except Profile.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+
+
+# ====================== LOGIN — REQUIRED ======================
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+@csrf_exempt
+def login_view(request):
+    auth_header = request.headers.get('Authorization')
+
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return Response({'error': 'Missing Bearer token'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    id_token = auth_header.split('Bearer ')[1]
+
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+    except Exception:
+        return Response({'error': 'Invalid Firebase token'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    firebase_uid = decoded_token['uid']
+
+    try:
+        user = User.objects.get(firebase_uid=firebase_uid)
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'User not registered. Please sign up.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    token, _ = Token.objects.get_or_create(user=user)
+    profile = user.profile
+
+    return Response({
+        'token': token.key,
+        'user': {
+            'id': user.id,
+            'username': user.username,
+        },
+        'profile': ProfileSerializer(profile, context={'request': request}).data,
+    }, status=status.HTTP_200_OK)

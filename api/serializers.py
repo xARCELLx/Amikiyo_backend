@@ -14,6 +14,7 @@ from .models import Profile
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     posts_count = serializers.SerializerMethodField()
@@ -21,8 +22,9 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            'username', 'bio', 'profile_image', 'anime_board',
-            'followers_count', 'following_count', 'posts_count'
+            'user_id',  
+            'id','username', 'bio', 'profile_image', 'anime_board',
+            'followers_count', 'following_count', 'posts_count',
         ]
         extra_kwargs = {
             'username': {'required': False},
