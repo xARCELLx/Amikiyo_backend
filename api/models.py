@@ -1,6 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
+from django.conf import settings
+
+import uuid
+
 class User(AbstractUser):
     firebase_uid = models.CharField(max_length=128, unique=True, null=True)
 
@@ -52,3 +56,27 @@ class Post(models.Model):
 
     def __str__(self):
         return f"{self.author.username} - {self.anime_title or 'No Anime'}"
+    
+
+# models.py
+class ChatRoom(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    user1 = models.ForeignKey(
+        User,
+        related_name='chat_rooms_as_user1',
+        on_delete=models.CASCADE
+    )
+    user2 = models.ForeignKey(
+        User,
+        related_name='chat_rooms_as_user2',
+        on_delete=models.CASCADE
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user1', 'user2')
+
+    def __str__(self):
+        return f"Chat: {self.user1} ↔ {self.user2}"

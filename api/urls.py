@@ -13,12 +13,14 @@ from .views import (
     delete_post,
     search_users,
     PublicProfileView,
-    login_view
+    get_user_posts,
+    GetOrCreateChatRoom,
+    MyChatRooms
+   
 )
 
 urlpatterns = [
     path('users/', UserCreateView.as_view(), name='user-create'),
-    path('auth/login/', login_view, name='login'),
     path('users/<int:user_id>/', UserProfileView.as_view(), name='user-profile'),
     path('posts/', PostCreateView.as_view(), name='post-create'),
     path('profiles/me/', get_my_profile, name='my-profile'),
@@ -26,6 +28,10 @@ urlpatterns = [
     path('posts/<int:pk>/', delete_post, name='post-delete'),
     path('profiles/search/', search_users, name='search-users'),
     path('profiles/<int:pk>/', PublicProfileView.as_view(), name='public-profile'),
+    path('posts/user/<int:user_id>/', get_user_posts),
+    path('chat/get-or-create/', GetOrCreateChatRoom.as_view()),
+    path('chat/my/', MyChatRooms.as_view()),
+
 ]
 
 # THIS IS THE ONLY THING THAT WAS MISSING — ADD THIS AT THE END

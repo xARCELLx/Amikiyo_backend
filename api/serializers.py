@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Profile, Post
+from .models import User, Profile, Post,ChatRoom
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -84,3 +84,24 @@ class PostSerializer(serializers.ModelSerializer):
             if data.get('author_pfp'):
                 data['author_pfp'] = request.build_absolute_uri(data['author_pfp'])
         return data
+    
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    other_user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChatRoom
+        fields = ['id', 'other_user', 'created_at']
+
+    def get_other_user(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return None
+
+        me = request.user
+        other = obj.user2 if obj.user1 == me else obj.user1
+
+        return {
+            'id': other.id,
+            'username': other.username,
+        }

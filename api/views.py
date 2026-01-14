@@ -14,6 +14,10 @@ from .models import Profile, Post,User
 from .serializers import ProfileSerializer, PostSerializer
 from firebase_admin import auth
 
+from .models import ChatRoom, User
+from .serializers import ChatRoomSerializer
+
+
 
 # ====================== USER CREATION (UNCHANGED — PERFECT) ======================
 @method_decorator(csrf_exempt, name='dispatch')
@@ -155,42 +159,98 @@ class PublicProfileView(APIView):
         
 
 
-# ====================== LOGIN — REQUIRED ======================
-@api_view(['POST'])
-@authentication_classes([])
-@permission_classes([])
-@csrf_exempt
-def login_view(request):
-    auth_header = request.headers.get('Authorization')
-
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return Response({'error': 'Missing Bearer token'}, status=status.HTTP_401_UNAUTHORIZED)
-
-    id_token = auth_header.split('Bearer ')[1]
-
+# ====================== OTHER USER POSTS (PUBLIC SAFE) ======================
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_user_posts(request, user_id):
     try:
-        decoded_token = auth.verify_id_token(id_token)
-    except Exception:
-        return Response({'error': 'Invalid Firebase token'}, status=status.HTTP_401_UNAUTHORIZED)
+        profile = Profile.objects.get(user__id=user_id)
+    except Profile.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    firebase_uid = decoded_token['uid']
+    viewer = request.user.profile
 
-    try:
-        user = User.objects.get(firebase_uid=firebase_uid)
-    except User.DoesNotExist:
-        return Response(
-            {'error': 'User not registered. Please sign up.'},
-            status=status.HTTP_404_NOT_FOUND
+    posts = Post.objects.filter(author=profile).order_by('-created_at')
+
+    # 🔒 PRIVACY RULES
+    if viewer != profile:
+        posts = posts.filter(privacy='public')
+
+    serializer = PostSerializer(
+        posts,
+        many=True,
+        context={'request': request}
+    )
+    return Response(serializer.data)
+
+
+
+
+# views.py
+
+
+
+
+class GetOrCreateChatRoom(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        other_user_id = request.data.get('user_id')
+
+        if not other_user_id:
+            return Response(
+                {'error': 'user_id required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            other_user = User.objects.get(id=other_user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        me = request.user
+
+        # 🔥 ORDER USERS (CRITICAL FIX)
+        user1, user2 = sorted(
+            [me, other_user],
+            key=lambda u: u.id
         )
 
-    token, _ = Token.objects.get_or_create(user=user)
-    profile = user.profile
+        chat, _ = ChatRoom.objects.get_or_create(
+            user1=user1,
+            user2=user2
+        )
 
-    return Response({
-        'token': token.key,
-        'user': {
-            'id': user.id,
-            'username': user.username,
-        },
-        'profile': ProfileSerializer(profile, context={'request': request}).data,
-    }, status=status.HTTP_200_OK)
+        serializer = ChatRoomSerializer(
+            chat,
+            context={'request': request}
+        )
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class MyChatRooms(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        me = request.user
+
+        chats = ChatRoom.objects.filter(
+            user1=me
+        ) | ChatRoom.objects.filter(
+            user2=me
+        )
+
+        serializer = ChatRoomSerializer(
+            chats.order_by('-created_at'),
+            many=True,
+            context={'request': request}
+        )
+
+        return Response(serializer.data)
