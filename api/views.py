@@ -10,12 +10,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from rest_framework.authtoken.models import Token
 
-from .models import Profile, Post,User
+from .models import Profile, Post,User,Post, PostLike
 from .serializers import ProfileSerializer, PostSerializer
 from firebase_admin import auth
 
-from .models import ChatRoom, User
-from .serializers import ChatRoomSerializer
+from .models import ChatRoom, User,PostComment
+from .serializers import ChatRoomSerializer,PostCommentSerializer
 
 
 
@@ -254,3 +254,207 @@ class MyChatRooms(APIView):
         )
 
         return Response(serializer.data)
+    
+
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def follow_user(request, user_id):
+    try:
+        me = request.user.profile
+        target = Profile.objects.get(user__id=user_id)
+
+        if me == target:
+            return Response(
+                {'error': 'You cannot follow yourself'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        me.following.add(target)
+        target.followers.add(me)
+
+        return Response({
+            'followed': True,
+            'followers_count': target.followers.count()
+        })
+
+    except Profile.DoesNotExist:
+        return Response(
+            {'error': 'User not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def unfollow_user(request, user_id):
+    try:
+        me = request.user.profile
+        target = Profile.objects.get(user__id=user_id)
+
+        me.following.remove(target)
+        target.followers.remove(me)
+
+        return Response({
+            'followed': False,
+            'followers_count': target.followers.count()
+        })
+
+    except Profile.DoesNotExist:
+        return Response(
+            {'error': 'User not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+# views.py
+
+class FollowersList(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        try:
+            profile = Profile.objects.get(user__id=user_id)
+        except Profile.DoesNotExist:
+            return Response(status=404)
+
+        data = [
+            {
+                'user_id': p.user.id,
+                'username': p.username,
+                'profile_image': request.build_absolute_uri(
+                    p.profile_image.url
+                ) if p.profile_image else None,
+            }
+            for p in profile.followers.all()
+        ]
+
+        return Response(data)
+
+
+class FollowingList(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        try:
+            profile = Profile.objects.get(user__id=user_id)
+        except Profile.DoesNotExist:
+            return Response(status=404)
+
+        data = [
+            {
+                'user_id': p.user.id,
+                'username': p.username,
+                'profile_image': request.build_absolute_uri(
+                    p.profile_image.url
+                ) if p.profile_image else None,
+            }
+            for p in profile.following.all()
+        ]
+
+        return Response(data)
+
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def like_post(request, post_id):
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        return Response({"detail": "Post not found"}, status=404)
+
+    like, created = PostLike.objects.get_or_create(
+        user=request.user,
+        post=post
+    )
+
+    return Response({
+        "liked": True,
+        "likes_count": post.likes.count()
+    }, status=200)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def unlike_post(request, post_id):
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        return Response({"detail": "Post not found"}, status=404)
+
+    PostLike.objects.filter(
+        user=request.user,
+        post=post
+    ).delete()
+
+    return Response({
+        "liked": False,
+        "likes_count": post.likes.count()
+    }, status=200)
+
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_comments(request, post_id):
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        return Response({"detail": "Post not found"}, status=404)
+
+    comments = PostComment.objects.filter(post=post)
+    serializer = PostCommentSerializer(
+        comments,
+        many=True,
+        context={"request": request}
+    )
+
+    return Response(serializer.data, status=200)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def add_comment(request, post_id):
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        return Response({"detail": "Post not found"}, status=404)
+
+    text = request.data.get("text", "").strip()
+    if not text:
+        return Response({"detail": "Comment cannot be empty"}, status=400)
+
+    comment = PostComment.objects.create(
+        user=request.user,
+        post=post,
+        text=text
+    )
+
+    serializer = PostCommentSerializer(
+        comment,
+        context={"request": request}
+    )
+
+    return Response(serializer.data, status=201)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_comment(request, comment_id):
+    try:
+        comment = PostComment.objects.get(id=comment_id)
+    except PostComment.DoesNotExist:
+        return Response({"detail": "Comment not found"}, status=404)
+
+    if comment.user != request.user:
+        return Response(
+            {"detail": "Not allowed"},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    comment.delete()
+    return Response(status=204)
+

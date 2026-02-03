@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Profile, Post,ChatRoom
+from .models import User, Profile, Post,ChatRoom,PostComment
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -13,24 +13,44 @@ from rest_framework import serializers
 from .models import Profile
 
 
+# serializers.py
+
+from rest_framework import serializers
+from .models import Profile
+
+
 class ProfileSerializer(serializers.ModelSerializer):
+    # ─── CORE FIELDS ─────────────────────────────
     user_id = serializers.IntegerField(source='user.id', read_only=True)
+
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     posts_count = serializers.SerializerMethodField()
 
+    # 🔥 FOLLOW SYSTEM
+    is_following = serializers.SerializerMethodField()
+
     class Meta:
         model = Profile
         fields = [
-            'user_id',  
-            'id','username', 'bio', 'profile_image', 'anime_board',
-            'followers_count', 'following_count', 'posts_count',
+            'user_id',
+            'id',
+            'username',
+            'bio',
+            'profile_image',
+            'anime_board',
+            'followers_count',
+            'following_count',
+            'posts_count',
+            'is_following',        # ✅ ADDED (NON-BREAKING)
         ]
         extra_kwargs = {
             'username': {'required': False},
             'bio': {'required': False},
             'anime_board': {'required': False},
         }
+
+    # ─── COUNTS ─────────────────────────────
 
     def get_followers_count(self, obj):
         return obj.followers.count()
@@ -41,13 +61,38 @@ class ProfileSerializer(serializers.ModelSerializer):
     def get_posts_count(self, obj):
         return obj.posts.count()
 
-    # THIS IS THE MAGIC — FULL ABSOLUTE URL FOR PFP
+    # ─── FOLLOW STATUS ─────────────────────────────
+
+    def get_is_following(self, obj):
+        """
+        Returns True if the requesting user follows this profile
+        Safe for:
+        - unauthenticated requests
+        - self profile
+        """
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+
+        try:
+            me = request.user.profile
+            return obj in me.following.all()
+        except Exception:
+            return False
+
+    # ─── ABSOLUTE PROFILE IMAGE URL ─────────────────
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         request = self.context.get('request')
+
         if request and data.get('profile_image'):
-            data['profile_image'] = request.build_absolute_uri(data['profile_image'])
+            data['profile_image'] = request.build_absolute_uri(
+                data['profile_image']
+            )
+
         return data
+
 
 # serializers.py
 
@@ -58,13 +103,31 @@ from .models import Post
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source='author.username', read_only=True)
     author_pfp = serializers.ImageField(source='author.profile_image', read_only=True)
+    likes_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
+
+    author_user_id = serializers.IntegerField(
+        source='author.user.id',
+        read_only=True
+    )
+
+    author_username = serializers.CharField(
+        source='author.username',
+        read_only=True
+    )
 
     class Meta:
         model = Post
         fields = [
+            'author_user_id',      # 🔥 THIS
+            'author_username', 
             'id', 'author', 'author_username', 'author_pfp',
             'image', 'caption', 'anime_id', 'anime_title',
-            'privacy', 'created_at'
+            'privacy', 'created_at',
+            "likes_count",
+            "is_liked",
+            "comments_count",
         ]
         read_only_fields = ['author', 'created_at']
 
@@ -84,6 +147,52 @@ class PostSerializer(serializers.ModelSerializer):
             if data.get('author_pfp'):
                 data['author_pfp'] = request.build_absolute_uri(data['author_pfp'])
         return data
+    
+    def get_likes_count(self, obj):
+        return obj.likes.count()
+
+    def get_is_liked(self, obj):
+        request = self.context.get("request")
+        if request is None or request.user.is_anonymous:
+            return False
+        return obj.likes.filter(user=request.user).exists()
+    
+    def get_comments_count(self, obj):
+        return obj.comments.count()
+    
+
+class PostCommentSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True)
+    profile_image = serializers.SerializerMethodField()
+    is_owner = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PostComment
+        fields = [
+            "id",
+            "user_id",
+            "username",
+            "profile_image",
+            "text",
+            "created_at",
+            "is_owner",
+        ]
+
+    def get_profile_image(self, obj):
+        profile = getattr(obj.user, "profile", None)
+        if profile and profile.profile_image:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(profile.profile_image.url)
+            return profile.profile_image.url
+        return None
+
+    def get_is_owner(self, obj):
+        request = self.context.get("request")
+        if request is None:
+            return False
+        return request.user == obj.user
     
 
 class ChatRoomSerializer(serializers.ModelSerializer):
