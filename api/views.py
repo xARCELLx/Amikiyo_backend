@@ -11,11 +11,12 @@ from django.utils.decorators import method_decorator
 from rest_framework.authtoken.models import Token
 
 from .models import Profile, Post,User,Post, PostLike
-from .serializers import ProfileSerializer, PostSerializer
+from .serializers import ProfileSerializer, PostSerializer,FeedPostSerializer
 from firebase_admin import auth
-
-from .models import ChatRoom, User,PostComment
+from django.db.models import Q
+from .models import ChatRoom, User,PostComment,PostView
 from .serializers import ChatRoomSerializer,PostCommentSerializer
+from django.shortcuts import get_object_or_404
 
 
 
@@ -458,3 +459,49 @@ def delete_comment(request, comment_id):
     comment.delete()
     return Response(status=204)
 
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def home_feed(request):
+    viewer_profile = request.user.profile
+
+    following_profiles = viewer_profile.following.all()
+
+    posts = (
+        Post.objects.select_related("author", "author__user")
+        .prefetch_related("likes", "comments", "views")
+        .filter(
+            Q(author=viewer_profile) |
+            Q(author__in=following_profiles) |
+            Q(privacy="public")
+        )
+        .exclude(
+            Q(privacy="followers") &
+            ~Q(author=viewer_profile) &
+            ~Q(author__in=following_profiles)
+        )
+        .order_by("-created_at")
+    )
+
+    serializer = FeedPostSerializer(
+        posts,
+        many=True,
+        context={"request": request}
+    )
+    return Response(serializer.data)
+
+
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def record_post_view(request, post_id):
+    post = get_object_or_404(Post, id=post_id)
+
+    PostView.objects.get_or_create(
+        post=post,
+        user=request.user
+    )
+
+    return Response({"status": "view recorded"})

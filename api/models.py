@@ -115,3 +115,27 @@ class ChatRoom(models.Model):
 
     def __str__(self):
         return f"Chat: {self.user1} ↔ {self.user2}"
+    
+
+
+# api/models.py
+
+class PostView(models.Model):
+    post = models.ForeignKey(
+        "Post",
+        on_delete=models.CASCADE,
+        related_name="views"
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="post_views"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("post", "user")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} viewed Post {self.post.id}"

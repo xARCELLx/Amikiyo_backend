@@ -214,3 +214,48 @@ class ChatRoomSerializer(serializers.ModelSerializer):
             'id': other.id,
             'username': other.username,
         }
+
+
+
+class FeedPostSerializer(serializers.ModelSerializer):
+    author = serializers.SerializerMethodField()
+    likes_count = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
+    views_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Post
+        fields = [
+            "id",
+            "image",
+            "caption",
+            "anime_title",
+            "privacy",
+            "created_at",
+            "author",
+            "likes_count",
+            "comments_count",
+            "views_count",
+            "is_liked",
+        ]
+
+    def get_author(self, obj):
+        return {
+            "id": obj.author.user.id,
+            "username": obj.author.user.username,
+            "profile_image": obj.author.profile_image,
+        }
+
+    def get_likes_count(self, obj):
+        return obj.likes.count()
+
+    def get_comments_count(self, obj):
+        return obj.comments.count()
+
+    def get_views_count(self, obj):
+        return obj.views.count()
+
+    def get_is_liked(self, obj):
+        user = self.context["request"].user
+        return obj.likes.filter(user=user).exists()

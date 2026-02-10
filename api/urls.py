@@ -24,7 +24,9 @@ from .views import (
     unlike_post,
     get_comments,
     add_comment,
-    delete_comment
+    delete_comment,
+    home_feed,
+    record_post_view
    
 )
 
@@ -49,6 +51,8 @@ urlpatterns = [
     path("posts/<int:post_id>/comments/", get_comments),
     path("posts/<int:post_id>/comments/add/", add_comment),
     path("comments/<int:comment_id>/delete/", delete_comment),
+    path("feed/", home_feed),
+path("posts/<int:post_id>/view/", record_post_view),
 
 ]
 
