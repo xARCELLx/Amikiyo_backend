@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import User, Profile, Post,ChatRoom,PostComment
+from django.contrib.auth import get_user_model
+from .models import GroupChat, GroupMember
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -106,7 +108,9 @@ class PostSerializer(serializers.ModelSerializer):
     likes_count = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
     comments_count = serializers.SerializerMethodField()
+    views_count = serializers.SerializerMethodField()
 
+    
     author_user_id = serializers.IntegerField(
         source='author.user.id',
         read_only=True
@@ -128,6 +132,7 @@ class PostSerializer(serializers.ModelSerializer):
             "likes_count",
             "is_liked",
             "comments_count",
+            "views_count",
         ]
         read_only_fields = ['author', 'created_at']
 
@@ -159,6 +164,10 @@ class PostSerializer(serializers.ModelSerializer):
     
     def get_comments_count(self, obj):
         return obj.comments.count()
+    
+    def get_views_count(self, obj):
+        return obj.views.count()
+
     
 
 class PostCommentSerializer(serializers.ModelSerializer):
@@ -259,3 +268,71 @@ class FeedPostSerializer(serializers.ModelSerializer):
     def get_is_liked(self, obj):
         user = self.context["request"].user
         return obj.likes.filter(user=user).exists()
+
+
+User = get_user_model()
+
+
+class GroupMemberSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id")
+    username = serializers.CharField(source="user.username")
+
+    class Meta:
+        model = GroupMember
+        fields = [
+            "user_id",
+            "username",
+            "role",
+            "joined_at",
+        ]
+
+
+
+class GroupChatSerializer(serializers.ModelSerializer):
+    members = GroupMemberSerializer(many=True, read_only=True)
+    members_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GroupChat
+        fields = [
+            "id",
+            "name",
+            "about",
+            "anime_id",
+            "anime_title",
+            "image",
+            "created_by",
+            "created_at",
+            "members",
+            "members_count",
+        ]
+
+    def get_members_count(self, obj):
+        return obj.members.filter(is_active=True).count()
+
+
+
+class CreateGroupSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150)
+    about = serializers.CharField(
+        required=False,
+        allow_blank=True
+    )
+
+    anime_id = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
+
+    anime_title = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
+
+    member_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=True
+    )
+

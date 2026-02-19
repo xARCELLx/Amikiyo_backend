@@ -121,21 +121,122 @@ class ChatRoom(models.Model):
 # api/models.py
 
 class PostView(models.Model):
-    post = models.ForeignKey(
-        "Post",
-        on_delete=models.CASCADE,
-        related_name="views"
-    )
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name="post_views"
     )
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name="views"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("post", "user")
+        unique_together = ("user", "post")  # 🔥 IMPORTANT
         ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.user.username} viewed Post {self.post.id}"
+    
+
+
+
+
+class GroupChat(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+
+    name = models.CharField(max_length=150)
+
+    about = models.TextField(blank=True)
+
+    # Anime tagging (optional, single anime)
+    anime_id = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    anime_title = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True
+    )
+
+    image = models.ImageField(
+        upload_to="group_images/",
+        blank=True,
+        null=True
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_groups"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+
+
+
+class GroupMember(models.Model):
+    ROLE_CHOICES = (
+        ("admin", "Admin"),
+        ("member", "Member"),
+    )
+
+    STATUS_CHOICES = (
+        ("active", "Active"),
+        ("pending", "Pending"),
+    )
+
+    group = models.ForeignKey(
+        GroupChat,
+        related_name="members",
+        on_delete=models.CASCADE
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="group_memberships"
+    )
+
+    role = models.CharField(
+        max_length=10,
+        choices=ROLE_CHOICES,
+        default="member"
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default="active"
+    )
+
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ("group", "user")
+        indexes = [
+            models.Index(fields=["group"]),
+            models.Index(fields=["user"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user} in {self.group} ({self.status})"
+
+

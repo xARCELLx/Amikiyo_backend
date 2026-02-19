@@ -26,7 +26,21 @@ from .views import (
     add_comment,
     delete_comment,
     home_feed,
-    record_post_view
+    record_post_view,
+    CreateGroupAPIView,
+    GroupDetailAPIView,
+    MyGroupsAPIView,
+    AddMemberAPIView,
+    RemoveMemberAPIView,
+    LeaveGroupAPIView,
+
+    ValidateGroupMembershipAPIView,
+    SearchGroupsAPIView,
+    RejectJoinRequestAPIView,
+    RequestJoinGroupAPIView,
+    ApproveJoinRequestAPIView,
+    UpdateGroupAPIView
+   
    
 )
 
@@ -51,8 +65,26 @@ urlpatterns = [
     path("posts/<int:post_id>/comments/", get_comments),
     path("posts/<int:post_id>/comments/add/", add_comment),
     path("comments/<int:comment_id>/delete/", delete_comment),
-    path("feed/", home_feed),
-path("posts/<int:post_id>/view/", record_post_view),
+    path("home-feed/", home_feed),
+    path("posts/<int:post_id>/view/", record_post_view),
+    path("groups/create/", CreateGroupAPIView.as_view()),
+    path("groups/my/", MyGroupsAPIView.as_view()),
+    path("groups/<uuid:group_id>/", GroupDetailAPIView.as_view()),
+    path("groups/<uuid:group_id>/add-member/", AddMemberAPIView.as_view()),
+    path("groups/<uuid:group_id>/remove-member/", RemoveMemberAPIView.as_view()),
+    path("groups/<uuid:group_id>/leave/", LeaveGroupAPIView.as_view()),
+    
+    path("groups/<uuid:group_id>/validate/", ValidateGroupMembershipAPIView.as_view()),
+    path("groups/search/", SearchGroupsAPIView.as_view()),
+    path("groups/<uuid:group_id>/request-join/", RequestJoinGroupAPIView.as_view()),
+    path("groups/<uuid:group_id>/approve/", ApproveJoinRequestAPIView.as_view()),
+    path("groups/<uuid:group_id>/reject/", RejectJoinRequestAPIView.as_view()),
+    
+    path("groups/<uuid:group_id>/update/", UpdateGroupAPIView.as_view()),
+
+
+
+
 
 ]
 

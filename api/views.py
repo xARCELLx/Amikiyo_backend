@@ -13,10 +13,469 @@ from rest_framework.authtoken.models import Token
 from .models import Profile, Post,User,Post, PostLike
 from .serializers import ProfileSerializer, PostSerializer,FeedPostSerializer
 from firebase_admin import auth
-from django.db.models import Q
+
 from .models import ChatRoom, User,PostComment,PostView
 from .serializers import ChatRoomSerializer,PostCommentSerializer
+
+
+from django.db.models import Count, F, ExpressionWrapper, FloatField,Q,DurationField
+from django.db.models.functions import Now
+from django.utils.timezone import now
+from django.db.models.functions import Now,Cast
+from .models import GroupChat, GroupMember
+from .serializers import (
+    CreateGroupSerializer,
+    GroupChatSerializer
+)
+from django.contrib.auth import get_user_model
+from django.db import transaction
+from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
+
+
+User = get_user_model()
+
+
+
+class CreateGroupAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = CreateGroupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        name = serializer.validated_data["name"]
+        about = serializer.validated_data.get("about", "")
+        anime_id = serializer.validated_data.get("anime_id")
+        anime_title = serializer.validated_data.get("anime_title")
+        member_ids = serializer.validated_data["member_ids"]
+
+        group = GroupChat.objects.create(
+            name=name,
+            about=about,
+            anime_id=anime_id,
+            anime_title=anime_title,
+            created_by=request.user
+        )
+
+
+        # Create group
+        group = GroupChat.objects.create(
+            name=name,
+            created_by=request.user
+        )
+
+        # Add creator as admin
+        GroupMember.objects.create(
+            group=group,
+            user=request.user,
+            role="admin"
+        )
+
+        # Add additional members
+        users = User.objects.filter(id__in=member_ids)
+
+        for user in users:
+            if user != request.user:
+                GroupMember.objects.create(
+                    group=group,
+                    user=user,
+                    role="member"
+                )
+
+        return Response(
+            GroupChatSerializer(group).data,
+            status=status.HTTP_201_CREATED
+        )
+    
+
+class MyGroupsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        groups = GroupChat.objects.filter(
+        members__user=request.user,
+        members__is_active=True,
+        members__status="active",
+        is_active=True
+    ).distinct()
+
+
+        serializer = GroupChatSerializer(groups, many=True)
+        return Response(serializer.data)
+
+
+class GroupDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, group_id):
+        return get_object_or_404(
+            GroupChat,
+            id=group_id,
+            is_active=True
+        )
+
+    def get(self, request, group_id):
+        group = self.get_object(group_id)
+
+        is_member = GroupMember.objects.filter(
+            group=group,
+            user=request.user,
+            is_active=True
+        ).exists()
+
+        if not is_member:
+            return Response(
+                {"detail": "Not authorized."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = GroupChatSerializer(group)
+        return Response(serializer.data)
+
+    @transaction.atomic
+    def delete(self, request, group_id):
+        group = self.get_object(group_id)
+
+        admin = GroupMember.objects.filter(
+            group=group,
+            user=request.user,
+            role="admin",
+            is_active=True
+        ).first()
+
+        if not admin:
+            raise PermissionDenied("Only admin can delete group.")
+
+        group.is_active = False
+        group.save()
+
+        return Response({"detail": "Group deleted successfully."})
+
+
+class AddMemberAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, group_id):
+        group = get_object_or_404(GroupChat, id=group_id, is_active=True)
+
+        # Check if requester is admin
+        try:
+            membership = GroupMember.objects.get(
+                group=group,
+                user=request.user,
+                is_active=True
+            )
+        except GroupMember.DoesNotExist:
+            raise PermissionDenied("Not a group member.")
+
+        if membership.role != "admin":
+            raise PermissionDenied("Only admin can add members.")
+
+        user_id = request.data.get("user_id")
+
+        if not user_id:
+            return Response({"detail": "user_id required."}, status=400)
+
+        user = get_object_or_404(User, id=user_id)
+
+        # Prevent duplicate
+        member, created = GroupMember.objects.get_or_create(
+            group=group,
+            user=user,
+            defaults={"role": "member"}
+        )
+
+        if not created and member.is_active:
+            return Response({"detail": "User already member."}, status=400)
+
+        member.is_active = True
+        member.save()
+
+        return Response({"detail": "Member added successfully."})
+    
+
+class RemoveMemberAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, group_id):
+        group = get_object_or_404(GroupChat, id=group_id, is_active=True)
+
+        admin = GroupMember.objects.filter(
+            group=group,
+            user=request.user,
+            role="admin",
+            is_active=True
+        ).first()
+
+        if not admin:
+            raise PermissionDenied("Only admin can remove members.")
+
+        user_id = request.data.get("user_id")
+
+        member = get_object_or_404(
+            GroupMember,
+            group=group,
+            user__id=user_id,
+            is_active=True
+        )
+
+        if member.user == request.user:
+            return Response({"detail": "Use leave endpoint."}, status=400)
+
+        member.is_active = False
+        member.save()
+
+        return Response({"detail": "Member removed."})
+
+class LeaveGroupAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, group_id):
+        group = get_object_or_404(GroupChat, id=group_id, is_active=True)
+
+        member = get_object_or_404(
+            GroupMember,
+            group=group,
+            user=request.user,
+            is_active=True
+        )
+
+        # If admin, check if last admin
+        if member.role == "admin":
+            other_admins = GroupMember.objects.filter(
+                group=group,
+                role="admin",
+                is_active=True
+            ).exclude(user=request.user)
+
+            if not other_admins.exists():
+                # Promote oldest member
+                oldest_member = GroupMember.objects.filter(
+                    group=group,
+                    is_active=True
+                ).exclude(user=request.user).order_by("joined_at").first()
+
+                if oldest_member:
+                    oldest_member.role = "admin"
+                    oldest_member.save()
+
+        member.is_active = False
+        member.save()
+
+        return Response({"detail": "Left group successfully."})
+
+
+
+class ValidateGroupMembershipAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, group_id):
+        is_member = GroupMember.objects.filter(
+            group__id=group_id,
+            user=request.user,
+            is_active=True,
+            status="active",
+            group__is_active=True
+        ).exists()
+
+        return Response({
+            "allowed": is_member
+        })
+    
+
+
+class SearchGroupsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        query = request.query_params.get("q", "").strip()
+
+        if not query:
+            return Response([])
+
+        groups = GroupChat.objects.filter(
+            name__icontains=query,
+            is_active=True
+        )
+
+        data = []
+        for group in groups:
+            membership = GroupMember.objects.filter(
+                group=group,
+                user=request.user
+            ).first()
+
+            status_value = None
+            if membership:
+                status_value = membership.status
+
+            data.append({
+                "id": str(group.id),
+                "name": group.name,
+                "image": group.image.url if group.image else None,
+                "membership_status": status_value  # active / pending / None
+            })
+
+        return Response(data)
+
+class RequestJoinGroupAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, group_id):
+        group = get_object_or_404(
+            GroupChat,
+            id=group_id,
+            is_active=True
+        )
+
+        member, created = GroupMember.objects.get_or_create(
+            group=group,
+            user=request.user,
+            defaults={
+                "role": "member",
+                "status": "pending"
+            }
+        )
+
+        if not created:
+            if member.status == "active":
+                return Response(
+                    {"detail": "Already a member."},
+                    status=400
+                )
+            elif member.status == "pending":
+                return Response(
+                    {"detail": "Request already pending."},
+                    status=400
+                )
+
+        return Response({
+            "detail": "Join request sent."
+        })
+
+
+class ApproveJoinRequestAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, group_id):
+        group = get_object_or_404(GroupChat, id=group_id)
+
+        # Check admin
+        admin = GroupMember.objects.filter(
+            group=group,
+            user=request.user,
+            role="admin",
+            status="active",
+            is_active=True
+        ).exists()
+
+        if not admin:
+            raise PermissionDenied("Only admin can approve.")
+
+        user_id = request.data.get("user_id")
+
+        member = get_object_or_404(
+            GroupMember,
+            group=group,
+            user__id=user_id,
+            status="pending"
+        )
+
+        member.status = "active"
+        member.save()
+
+        return Response({"detail": "User approved."})
+
+
+class RejectJoinRequestAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, group_id):
+        group = get_object_or_404(GroupChat, id=group_id)
+
+        admin = GroupMember.objects.filter(
+            group=group,
+            user=request.user,
+            role="admin",
+            status="active",
+            is_active=True
+        ).exists()
+
+        if not admin:
+            raise PermissionDenied("Only admin can reject.")
+
+        user_id = request.data.get("user_id")
+
+        GroupMember.objects.filter(
+            group=group,
+            user__id=user_id,
+            status="pending"
+        ).delete()
+
+        return Response({"detail": "Request rejected."})
+    
+
+
+class UpdateGroupAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def patch(self, request, group_id):
+        group = get_object_or_404(
+            GroupChat,
+            id=group_id,
+            is_active=True
+        )
+
+        # Only admin can update
+        membership = GroupMember.objects.filter(
+            group=group,
+            user=request.user,
+            role="admin",
+            is_active=True
+        ).first()
+
+        if not membership:
+            raise PermissionDenied("Only admin can update group.")
+
+        name = request.data.get("name")
+        about = request.data.get("about")
+        anime_id = request.data.get("anime_id")
+        anime_title = request.data.get("anime_title")
+
+        if name is not None:
+            group.name = name
+
+        if about is not None:
+            group.about = about
+
+        if anime_id is not None:
+            group.anime_id = anime_id
+
+        if anime_title is not None:
+            group.anime_title = anime_title
+
+        if "image" in request.FILES:
+            group.image = request.FILES["image"]
+
+        group.save()
+
+        return Response(
+            GroupChatSerializer(group).data,
+            status=status.HTTP_200_OK
+        )
+
+
+
+
 
 
 
@@ -461,47 +920,91 @@ def delete_comment(request, comment_id):
 
 
 
-@api_view(["GET"])
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def home_feed(request):
-    viewer_profile = request.user.profile
+    user_profile = request.user.profile
 
-    following_profiles = viewer_profile.following.all()
+    following_profiles = user_profile.following.all()
 
-    posts = (
-        Post.objects.select_related("author", "author__user")
-        .prefetch_related("likes", "comments", "views")
-        .filter(
-            Q(author=viewer_profile) |
-            Q(author__in=following_profiles) |
-            Q(privacy="public")
-        )
-        .exclude(
-            Q(privacy="followers") &
-            ~Q(author=viewer_profile) &
-            ~Q(author__in=following_profiles)
-        )
-        .order_by("-created_at")
+    # STRICT PRIVACY FILTER
+    posts = Post.objects.filter(
+        Q(author=user_profile) |  # always see your own posts
+        Q(author__in=following_profiles, privacy__in=["public", "followers"]) |
+        Q(privacy="public")
+    ).distinct()
+
+    # ───────── COUNTS ─────────
+    posts = posts.annotate(
+        likes_count=Count("likes", distinct=True),
+        comments_count=Count("comments", distinct=True),
+        views_count=Count("views", distinct=True)
     )
 
-    serializer = FeedPostSerializer(
+    # ───────── PROPER RECENCY CALCULATION ─────────
+
+    from django.db.models.functions import Now
+    from django.db.models import DurationField
+    from django.db.models.functions import Cast
+
+    hours_since = ExpressionWrapper(
+        (Now() - F("created_at")),
+        output_field=DurationField()
+    )
+
+    posts = posts.annotate(
+        hours_since_posted=Cast(hours_since, FloatField())
+    )
+
+    # Instead of broken ExtractHour math
+    posts = posts.annotate(
+        score=(
+            F("likes_count") * 3 +
+            F("comments_count") * 4 +
+            F("views_count") * 1 +
+            48 / (F("likes_count") + F("comments_count") + 2)
+        )
+    ).order_by("-score", "-created_at")
+
+    serializer = PostSerializer(
         posts,
         many=True,
         context={"request": request}
     )
+
     return Response(serializer.data)
 
 
-
+# ====================== RECORD POST VIEW ======================
 
 @api_view(["POST"])
+@authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def record_post_view(request, post_id):
-    post = get_object_or_404(Post, id=post_id)
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        return Response({"detail": "Post not found"}, status=404)
 
+    viewer = request.user
+
+    # 🔒 PRIVACY CHECK
+    author_profile = post.author
+    viewer_profile = viewer.profile
+
+    if author_profile != viewer_profile:
+        if post.privacy == "followers":
+            if viewer_profile not in author_profile.followers.all():
+                return Response(
+                    {"detail": "This post is private"},
+                    status=403
+                )
+
+    # 🔥 UNIQUE VIEW LOGIC
     PostView.objects.get_or_create(
-        post=post,
-        user=request.user
+        user=viewer,
+        post=post
     )
 
-    return Response({"status": "view recorded"})
+    return Response({"view_recorded": True}, status=200)
