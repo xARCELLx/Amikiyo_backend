@@ -42,39 +42,53 @@ class CreateGroupAPIView(APIView):
 
     @transaction.atomic
     def post(self, request):
-        serializer = CreateGroupSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
 
-        name = serializer.validated_data["name"]
-        about = serializer.validated_data.get("about", "")
-        anime_id = serializer.validated_data.get("anime_id")
-        anime_title = serializer.validated_data.get("anime_title")
-        member_ids = serializer.validated_data["member_ids"]
+        member_ids = request.data.get("member_ids")
 
+        # 🔥 Handle JSON string from multipart safely
+        if isinstance(member_ids, str):
+            import json
+            try:
+                member_ids = json.loads(member_ids)
+            except Exception:
+                return Response(
+                    {"member_ids": "Invalid format."},
+                    status=400
+                )
+
+        # 🔥 Build clean data dict manually (no copy())
+        serializer = CreateGroupSerializer(data={
+            "name": request.data.get("name"),
+            "about": request.data.get("about", ""),
+            "anime_id": request.data.get("anime_id"),
+            "anime_title": request.data.get("anime_title"),
+            "member_ids": member_ids or [],
+        })
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        validated = serializer.validated_data
+
+        # 🔥 Create group
         group = GroupChat.objects.create(
-            name=name,
-            about=about,
-            anime_id=anime_id,
-            anime_title=anime_title,
-            created_by=request.user
+            name=validated["name"],
+            about=validated.get("about", ""),
+            anime_id=validated.get("anime_id"),
+            anime_title=validated.get("anime_title"),
+            created_by=request.user,
+            image=request.FILES.get("image")
         )
 
-
-        # Create group
-        group = GroupChat.objects.create(
-            name=name,
-            created_by=request.user
-        )
-
-        # Add creator as admin
+        # 🔥 Add creator as admin
         GroupMember.objects.create(
             group=group,
             user=request.user,
             role="admin"
         )
 
-        # Add additional members
-        users = User.objects.filter(id__in=member_ids)
+        # 🔥 Add members
+        users = User.objects.filter(id__in=validated["member_ids"])
 
         for user in users:
             if user != request.user:
@@ -88,7 +102,6 @@ class CreateGroupAPIView(APIView):
             GroupChatSerializer(group).data,
             status=status.HTTP_201_CREATED
         )
-    
 
 class MyGroupsAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -161,40 +174,43 @@ class AddMemberAPIView(APIView):
     def post(self, request, group_id):
         group = get_object_or_404(GroupChat, id=group_id, is_active=True)
 
-        # Check if requester is admin
-        try:
-            membership = GroupMember.objects.get(
-                group=group,
-                user=request.user,
-                is_active=True
-            )
-        except GroupMember.DoesNotExist:
-            raise PermissionDenied("Not a group member.")
+        # Check admin
+        membership = GroupMember.objects.filter(
+            group=group,
+            user=request.user,
+            role="admin",
+            is_active=True
+        ).first()
 
-        if membership.role != "admin":
+        if not membership:
             raise PermissionDenied("Only admin can add members.")
 
         user_id = request.data.get("user_id")
-
         if not user_id:
             return Response({"detail": "user_id required."}, status=400)
 
         user = get_object_or_404(User, id=user_id)
 
-        # Prevent duplicate
         member, created = GroupMember.objects.get_or_create(
             group=group,
             user=user,
-            defaults={"role": "member"}
+            defaults={
+                "role": "member",
+                "is_active": True,
+                "status": "active",
+            }
         )
 
-        if not created and member.is_active:
-            return Response({"detail": "User already member."}, status=400)
-
-        member.is_active = True
-        member.save()
+        # 🔥 If user existed but was inactive, reactivate properly
+        if not created:
+            member.is_active = True
+            member.status = "active"
+            member.role = "member"
+            member.save()
+            return Response({"detail": "Member reactivated."})
 
         return Response({"detail": "Member added successfully."})
+
     
 
 class RemoveMemberAPIView(APIView):
@@ -230,6 +246,46 @@ class RemoveMemberAPIView(APIView):
         member.save()
 
         return Response({"detail": "Member removed."})
+    
+
+class TransferAdminAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, group_id):
+        group = get_object_or_404(GroupChat, id=group_id, is_active=True)
+
+        # Check requester is active admin
+        current_admin = GroupMember.objects.filter(
+            group=group,
+            user=request.user,
+            role="admin",
+            is_active=True
+        ).first()
+
+        if not current_admin:
+            raise PermissionDenied("Only admin can transfer ownership.")
+
+        new_admin_id = request.data.get("user_id")
+        if not new_admin_id:
+            return Response({"detail": "user_id required."}, status=400)
+
+        new_admin_member = get_object_or_404(
+            GroupMember,
+            group=group,
+            user__id=new_admin_id,
+            is_active=True
+        )
+
+        # Demote current admin
+        current_admin.role = "member"
+        current_admin.save()
+
+        # Promote new admin
+        new_admin_member.role = "admin"
+        new_admin_member.save()
+
+        return Response({"detail": "Admin transferred successfully."})
 
 class LeaveGroupAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -245,32 +301,25 @@ class LeaveGroupAPIView(APIView):
             is_active=True
         )
 
-        # If admin, check if last admin
+        # If admin, ensure another admin exists
         if member.role == "admin":
-            other_admins = GroupMember.objects.filter(
+            other_admin_exists = GroupMember.objects.filter(
                 group=group,
                 role="admin",
                 is_active=True
-            ).exclude(user=request.user)
+            ).exclude(user=request.user).exists()
 
-            if not other_admins.exists():
-                # Promote oldest member
-                oldest_member = GroupMember.objects.filter(
-                    group=group,
-                    is_active=True
-                ).exclude(user=request.user).order_by("joined_at").first()
-
-                if oldest_member:
-                    oldest_member.role = "admin"
-                    oldest_member.save()
+            if not other_admin_exists:
+                return Response(
+                    {"detail": "Transfer admin before leaving."},
+                    status=400
+                )
 
         member.is_active = False
         member.save()
 
         return Response({"detail": "Left group successfully."})
-
-
-
+    
 class ValidateGroupMembershipAPIView(APIView):
     permission_classes = [IsAuthenticated]
 

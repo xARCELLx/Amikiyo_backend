@@ -289,7 +289,7 @@ class GroupMemberSerializer(serializers.ModelSerializer):
 
 
 class GroupChatSerializer(serializers.ModelSerializer):
-    members = GroupMemberSerializer(many=True, read_only=True)
+    members = serializers.SerializerMethodField()
     members_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -307,8 +307,23 @@ class GroupChatSerializer(serializers.ModelSerializer):
             "members_count",
         ]
 
+    def get_members(self, obj):
+        active_members = obj.members.filter(
+            is_active=True,
+            status="active"
+        )
+
+        return GroupMemberSerializer(
+            active_members,
+            many=True,
+            context=self.context
+        ).data
+
     def get_members_count(self, obj):
-        return obj.members.filter(is_active=True).count()
+        return obj.members.filter(
+            is_active=True,
+            status="active"
+        ).count()
 
 
 

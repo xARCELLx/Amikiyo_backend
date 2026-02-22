@@ -39,7 +39,8 @@ from .views import (
     RejectJoinRequestAPIView,
     RequestJoinGroupAPIView,
     ApproveJoinRequestAPIView,
-    UpdateGroupAPIView
+    UpdateGroupAPIView,
+    TransferAdminAPIView
    
    
 )
@@ -81,6 +82,7 @@ urlpatterns = [
     path("groups/<uuid:group_id>/reject/", RejectJoinRequestAPIView.as_view()),
     
     path("groups/<uuid:group_id>/update/", UpdateGroupAPIView.as_view()),
+    path('groups/<uuid:group_id>/transfer-admin/', TransferAdminAPIView.as_view()),
 
 
 
