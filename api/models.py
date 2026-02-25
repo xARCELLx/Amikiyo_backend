@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 from django.conf import settings
+from django.db.models.functions import Lower
+from django.db.models import Q
 
 import uuid
 
@@ -151,7 +153,10 @@ class GroupChat(models.Model):
         editable=False
     )
 
-    name = models.CharField(max_length=150)
+    name = models.CharField(
+        max_length=150,
+        db_index=True  # 🔥 improves search performance
+    )
 
     about = models.TextField(blank=True)
 
@@ -184,9 +189,24 @@ class GroupChat(models.Model):
 
     is_active = models.BooleanField(default=True)
 
+    class Meta:
+        # 🔥 CASE-INSENSITIVE UNIQUE ONLY FOR ACTIVE GROUPS
+        constraints = [
+            models.UniqueConstraint(
+                Lower('name'),
+                condition=Q(is_active=True),
+                name='unique_active_group_name_ci'
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        # 🔥 Always trim spaces
+        if self.name:
+            self.name = self.name.strip()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
-
 
 
 

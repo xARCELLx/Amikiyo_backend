@@ -478,13 +478,14 @@ class UpdateGroupAPIView(APIView):
 
     @transaction.atomic
     def patch(self, request, group_id):
+
         group = get_object_or_404(
             GroupChat,
             id=group_id,
             is_active=True
         )
 
-        # Only admin can update
+        # 🔥 Only admin can update
         membership = GroupMember.objects.filter(
             group=group,
             user=request.user,
@@ -500,17 +501,44 @@ class UpdateGroupAPIView(APIView):
         anime_id = request.data.get("anime_id")
         anime_title = request.data.get("anime_title")
 
+        # ───────── NAME VALIDATION ─────────
+
         if name is not None:
+            name = name.strip()
+
+            if not name:
+                return Response(
+                    {"name": "Group name cannot be empty."},
+                    status=400
+                )
+
+            # 🔥 Check uniqueness excluding self
+            exists = GroupChat.objects.filter(
+                name__iexact=name
+            ).exclude(id=group.id).exists()
+
+            if exists:
+                return Response(
+                    {"name": "Group name already exists."},
+                    status=400
+                )
+
             group.name = name
 
+        # ───────── ABOUT ─────────
+
         if about is not None:
-            group.about = about
+            group.about = about.strip()
+
+        # ───────── ANIME ─────────
 
         if anime_id is not None:
             group.anime_id = anime_id
 
         if anime_title is not None:
             group.anime_title = anime_title
+
+        # ───────── IMAGE ─────────
 
         if "image" in request.FILES:
             group.image = request.FILES["image"]
@@ -521,7 +549,6 @@ class UpdateGroupAPIView(APIView):
             GroupChatSerializer(group).data,
             status=status.HTTP_200_OK
         )
-
 
 
 
@@ -1057,3 +1084,33 @@ def record_post_view(request, post_id):
     )
 
     return Response({"view_recorded": True}, status=200)
+
+
+
+class PostDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, post_id):
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response({"detail": "Post not found"}, status=404)
+
+        # 🔒 PRIVACY CHECK
+        viewer_profile = request.user.profile
+        author_profile = post.author
+
+        if author_profile != viewer_profile:
+            if post.privacy == "followers":
+                if viewer_profile not in author_profile.followers.all():
+                    return Response(
+                        {"detail": "This post is private"},
+                        status=403
+                    )
+
+        serializer = PostSerializer(
+            post,
+            context={"request": request}
+        )
+
+        return Response(serializer.data)

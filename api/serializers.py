@@ -351,3 +351,11 @@ class CreateGroupSerializer(serializers.Serializer):
         allow_empty=True
     )
 
+    def validate_name(self, value):
+        value = value.strip()
+
+        if GroupChat.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError("Group name already exists.")
+
+        return value
+
