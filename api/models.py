@@ -14,6 +14,52 @@ class User(AbstractUser):
         return self.username
 
 
+
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
+
+
+class Story(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="stories"
+    )
+
+    image = models.ImageField(upload_to="stories/")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def is_active(self):
+        return self.created_at >= timezone.now() - timedelta(hours=24)
+
+    def __str__(self):
+        return f"{self.user.username} story"
+    
+
+class StoryView(models.Model):
+    story = models.ForeignKey(
+        Story,
+        on_delete=models.CASCADE,
+        related_name="views"
+    )
+
+    viewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE
+    )
+
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("story", "viewer")
+
+
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=50, unique=True)

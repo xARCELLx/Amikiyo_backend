@@ -3,6 +3,41 @@ from .models import User, Profile, Post,ChatRoom,PostComment
 from django.contrib.auth import get_user_model
 from .models import GroupChat, GroupMember
 
+
+
+from rest_framework import serializers
+from .models import Story
+
+
+class StorySerializer(serializers.ModelSerializer):
+
+    username = serializers.CharField(source="user.username", read_only=True)
+    profile_image = serializers.CharField(source="user.profile.profile_image", read_only=True)
+
+    views_count = serializers.SerializerMethodField()
+    is_seen = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Story
+        fields = [
+            "id",
+            "image",
+            "created_at",
+            "username",
+            "profile_image",
+            "views_count",
+            "is_seen"
+        ]
+
+    def get_views_count(self, obj):
+        return obj.views.count()
+
+    def get_is_seen(self, obj):
+        user = self.context["request"].user
+        return obj.views.filter(viewer=user).exists()
+    
+    
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

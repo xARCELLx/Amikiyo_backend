@@ -23,6 +23,12 @@ from django.db.models.functions import Now
 from django.utils.timezone import now
 from django.db.models.functions import Now,Cast
 from .models import GroupChat, GroupMember
+from .models import Story, StoryView
+from .serializers import StorySerializer
+from django.utils import timezone
+from datetime import timedelta
+
+
 from .serializers import (
     CreateGroupSerializer,
     GroupChatSerializer
@@ -569,8 +575,10 @@ class UserCreateView(APIView):
         id_token = auth_header.split('Bearer ')[1]
         try:
             decoded_token = auth.verify_id_token(id_token)
-        except Exception:
-            return Response({'error': 'Invalid Firebase token'}, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            print("🔥 FIREBASE VERIFY ERROR:", str(e))
+            return Response({'error': str(e)}, status=401)
+        
 
         firebase_uid = decoded_token['uid']
         email = decoded_token.get('email', '')
@@ -1114,3 +1122,115 @@ class PostDetailAPIView(APIView):
         )
 
         return Response(serializer.data)
+    
+
+
+class CreateStoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        image = request.FILES.get("image")
+
+        if not image:
+            return Response({"error": "Image required"}, status=400)
+
+        story = Story.objects.create(
+            user=request.user,
+            image=image
+        )
+
+        return Response(StorySerializer(story, context={"request": request}).data)
+    
+
+
+
+
+class StoryFeedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        now = timezone.now()
+        limit = now - timedelta(hours=24)
+
+        active_stories = Story.objects.filter(
+            created_at__gte=limit
+        ).select_related("user")
+
+        stories_by_user = {}
+
+        for story in active_stories:
+
+            user_id = story.user.id
+
+            if user_id not in stories_by_user:
+                stories_by_user[user_id] = {
+                    "user_id": story.user.id,
+                    "username": story.user.username,
+                    "profile_image": getattr(story.user.profile, "profile_image", None),
+                    "stories": []
+                }
+
+            serializer = StorySerializer(
+                story,
+                context={"request": request}
+            )
+
+            stories_by_user[user_id]["stories"].append(serializer.data)
+
+        return Response(list(stories_by_user.values()))
+    
+
+class ViewStory(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, story_id):
+
+        try:
+            story = Story.objects.get(id=story_id)
+        except Story.DoesNotExist:
+            return Response({"error": "Story not found"}, status=404)
+
+        StoryView.objects.get_or_create(
+            story=story,
+            viewer=request.user
+        )
+
+        return Response({"status": "view recorded"})
+    
+
+class MyStoriesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        now = timezone.now()
+        limit = now - timedelta(hours=24)
+
+        stories = Story.objects.filter(
+            user=request.user,
+            created_at__gte=limit
+        )
+
+        serializer = StorySerializer(
+            stories,
+            many=True,
+            context={"request": request}
+        )
+
+        return Response(serializer.data)
+    
+class DeleteStory(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, story_id):
+
+        try:
+            story = Story.objects.get(id=story_id, user=request.user)
+        except Story.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        story.delete()
+
+        return Response({"status": "deleted"})

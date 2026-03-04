@@ -41,7 +41,12 @@ from .views import (
     ApproveJoinRequestAPIView,
     UpdateGroupAPIView,
     TransferAdminAPIView,
-    PostDetailAPIView
+    PostDetailAPIView,
+    CreateStoryView,
+    ViewStory,
+    DeleteStory,
+    StoryFeedView,
+    MyStoriesView
    
    
 )
@@ -85,6 +90,11 @@ urlpatterns = [
     path("groups/<uuid:group_id>/update/", UpdateGroupAPIView.as_view()),
     path('groups/<uuid:group_id>/transfer-admin/', TransferAdminAPIView.as_view()),
     path('posts/<int:post_id>/detail/', PostDetailAPIView.as_view()),
+    path("story/create/", CreateStoryView.as_view()),
+    path("story/feed/", StoryFeedView.as_view()),
+    path("story/my/", MyStoriesView.as_view()),
+    path("story/<int:story_id>/view/", ViewStory.as_view()),
+    path("story/<int:story_id>/delete/", DeleteStory.as_view()),
 
 
 
