@@ -1156,21 +1156,34 @@ class StoryFeedView(APIView):
 
         active_stories = Story.objects.filter(
             created_at__gte=limit
-        ).select_related("user")
+        ).select_related("user", "user__profile")
 
         stories_by_user = {}
 
         for story in active_stories:
 
-            user_id = story.user.id
+            user = story.user
+            user_id = user.id
+
+            # SAFE PROFILE IMAGE URL
+            profile_image = None
+            if hasattr(user, "profile") and user.profile.profile_image:
+                profile_image = request.build_absolute_uri(
+                    user.profile.profile_image.url
+                )
 
             if user_id not in stories_by_user:
                 stories_by_user[user_id] = {
-                    "user_id": story.user.id,
-                    "username": story.user.username,
-                    "profile_image": getattr(story.user.profile, "profile_image", None),
-                    "stories": []
-                }
+                "user_id": story.user.id,
+                "username": story.user.username,
+                "profile_image": (
+                    request.build_absolute_uri(story.user.profile.profile_image.url)
+                    if getattr(story.user.profile, "profile_image", None)
+                    else None
+                ),
+                "is_me": story.user == request.user,
+                "stories": []
+            }
 
             serializer = StorySerializer(
                 story,
@@ -1180,7 +1193,6 @@ class StoryFeedView(APIView):
             stories_by_user[user_id]["stories"].append(serializer.data)
 
         return Response(list(stories_by_user.values()))
-    
 
 class ViewStory(APIView):
     permission_classes = [IsAuthenticated]
@@ -1234,3 +1246,31 @@ class DeleteStory(APIView):
         story.delete()
 
         return Response({"status": "deleted"})
+        
+
+class StoryViewers(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, story_id):
+
+        try:
+            story = Story.objects.get(id=story_id, user=request.user)
+        except Story.DoesNotExist:
+            return Response({"error": "Not allowed"}, status=403)
+
+        viewers = StoryView.objects.filter(story=story).select_related("viewer")
+
+        data = []
+
+        for v in viewers:
+            profile = getattr(v.viewer, "profile", None)
+
+            data.append({
+                "username": v.viewer.username,
+                "profile_image": (
+                    request.build_absolute_uri(profile.profile_image.url)
+                    if profile and profile.profile_image else None
+                )
+            })
+
+        return Response(data)

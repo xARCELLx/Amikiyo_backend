@@ -46,7 +46,8 @@ from .views import (
     ViewStory,
     DeleteStory,
     StoryFeedView,
-    MyStoriesView
+    MyStoriesView,
+    StoryViewers
    
    
 )
@@ -95,6 +96,7 @@ urlpatterns = [
     path("story/my/", MyStoriesView.as_view()),
     path("story/<int:story_id>/view/", ViewStory.as_view()),
     path("story/<int:story_id>/delete/", DeleteStory.as_view()),
+    path("story/<int:story_id>/viewers/", StoryViewers.as_view()),
 
 
 

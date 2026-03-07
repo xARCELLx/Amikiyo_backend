@@ -12,8 +12,8 @@ from .models import Story
 class StorySerializer(serializers.ModelSerializer):
 
     username = serializers.CharField(source="user.username", read_only=True)
-    profile_image = serializers.CharField(source="user.profile.profile_image", read_only=True)
 
+    profile_image = serializers.SerializerMethodField()
     views_count = serializers.SerializerMethodField()
     is_seen = serializers.SerializerMethodField()
 
@@ -26,16 +26,31 @@ class StorySerializer(serializers.ModelSerializer):
             "username",
             "profile_image",
             "views_count",
-            "is_seen"
+            "is_seen",
         ]
+
+    # ───────── PROFILE IMAGE URL ─────────
+
+    def get_profile_image(self, obj):
+        request = self.context.get("request")
+
+        profile = getattr(obj.user, "profile", None)
+
+        if profile and profile.profile_image:
+            return request.build_absolute_uri(profile.profile_image.url)
+
+        return None
+
+    # ───────── VIEW COUNT ─────────
 
     def get_views_count(self, obj):
         return obj.views.count()
 
+    # ───────── SEEN STATUS ─────────
+
     def get_is_seen(self, obj):
         user = self.context["request"].user
         return obj.views.filter(viewer=user).exists()
-    
     
 
 class UserSerializer(serializers.ModelSerializer):
