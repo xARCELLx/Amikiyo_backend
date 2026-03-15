@@ -1,10 +1,10 @@
 # Amikiyo Backend — Social Platform API
 
-A scalable backend system built using **Python and Django** with **Django REST Framework** to power a modern mobile social media platform.
+Full-stack backend powering a **social media platform for anime communities**, designed to support scalable REST APIs, relational database architecture, containerized deployment, and real-time integrations.
 
-This backend provides secure REST APIs used by a **Flutter mobile client** and supports user interactions such as posting, messaging, groups, and story sharing.
+The backend system is built using **Python and Django** with **Django REST Framework**, providing secure APIs consumed by a Flutter mobile application.
 
-The project demonstrates backend system design including authentication, social graph management, media handling, and modular API architecture.
+The platform enables users to interact socially through posts, comments, messaging, groups, and temporary stories while maintaining a modular backend architecture designed for scalability.
 
 ---
 
@@ -25,7 +25,7 @@ Django REST Backend (Containerized with Docker)
             └── Stories System
 ```
 
-The backend is fully containerized using Docker for reproducible environments and easier deployment.
+The backend is fully containerized using Docker to provide **consistent development environments, reproducible builds, and easier deployment**.
 
 ---
 
@@ -45,6 +45,7 @@ The backend is fully containerized using Docker for reproducible environments an
 
 * Docker Containerization
 * Gunicorn WSGI Server
+* Relational Database Support
 
 ### Cloud & Integrations
 
@@ -55,6 +56,57 @@ The backend is fully containerized using Docker for reproducible environments an
 
 * Pillow (image handling)
 * Python Decouple (environment management)
+
+---
+
+# Database Architecture
+
+The backend uses **Django ORM** for database abstraction and schema management, allowing the system to operate with multiple relational database engines without changing application logic.
+
+### Supported Databases
+
+The architecture is compatible with:
+
+* PostgreSQL for production deployments
+* MySQL for scalable relational database environments
+* SQLite for lightweight development environments
+
+During development the project runs on **SQLite**, while the schema and migrations are designed to support migration to **PostgreSQL or MySQL** in production environments.
+
+### Database Design
+
+The platform implements a **relational data model** with structured relationships between multiple entities.
+
+Core database entities include:
+
+* Users
+* Profiles
+* Posts
+* Comments
+* Followers
+* Groups
+* Group Memberships
+* Stories
+* Story Viewers
+* Chat Rooms
+
+Relationships are implemented using Django ORM constructs such as:
+
+* Foreign Keys
+* Many-to-Many relationships
+* Database migrations
+* Indexed fields for efficient querying
+
+### Data Integrity & Query Handling
+
+The backend ensures reliable data management through:
+
+* ORM based query abstraction
+* Schema migrations for version-controlled database updates
+* Relational constraints for data consistency
+* Optimized query handling for feed generation and social interactions
+
+This architecture allows the platform to scale while keeping the database layer maintainable and modular.
 
 ---
 
@@ -152,6 +204,8 @@ The backend is fully containerized using Docker for reproducible environments an
 /story/feed/
 ```
 
+These endpoints provide the primary API layer consumed by the Flutter mobile client.
+
 ---
 
 # Running the Project Locally
@@ -185,7 +239,7 @@ http://127.0.0.1:8000
 
 # Running with Docker
 
-The backend is containerized using Docker for consistent development and deployment environments.
+The backend is containerized using Docker to provide a consistent runtime environment.
 
 ### Build the container
 
@@ -205,7 +259,7 @@ docker run -p 8000:8000 amikiyo-backend
 docker compose up --build
 ```
 
-This starts the backend service inside a container.
+This launches the backend service inside a container.
 
 ---
 
@@ -242,7 +296,7 @@ Planned enhancements for the backend system include:
 
 * AI powered content recommendation
 * Automated content moderation
-* Real time notifications
+* Real-time notifications
 * Advanced analytics and engagement tracking
 
 ---
