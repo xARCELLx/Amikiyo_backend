@@ -83,28 +83,73 @@ class Profile(models.Model):
 # models.py
 
 class Post(models.Model):
+
     PRIVACY_CHOICES = [
         ('public', 'Public'),
         ('followers', 'Followers Only'),
     ]
 
-    author = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='posts')
-    image = models.ImageField(upload_to='post_images/')
-    caption = models.TextField(max_length=500, blank=True)
+    POST_TYPE_CHOICES = [
+        ('image', 'Image Post'),
+        ('thought', 'Thought'),
+    ]
 
-    # REPLACE ForeignKey WITH THESE TWO FIELDS
-    anime_id = models.CharField(max_length=20, blank=True, null=True)      # stores "12345"
-    anime_title = models.CharField(max_length=200, blank=True, null=True)  # stores "Attack on Titan"
+    author = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name='posts'
+    )
 
-    privacy = models.CharField(max_length=20, choices=PRIVACY_CHOICES, default='public')
-    created_at = models.DateTimeField(auto_now_add=True)
+    # 🔹 NEW FIELD (determines post type)
+    post_type = models.CharField(
+        max_length=10,
+        choices=POST_TYPE_CHOICES,
+        default='image'
+    )
+
+    # 🔹 Image optional now
+    image = models.ImageField(
+        upload_to='post_images/',
+        blank=True,
+        null=True
+    )
+
+    caption = models.TextField(
+        max_length=2000,
+        blank=True
+    )
+
+    # Anime tagging
+    anime_id = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    anime_title = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True
+    )
+
+    privacy = models.CharField(
+        max_length=20,
+        choices=PRIVACY_CHOICES,
+        default='public'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.author.username} - {self.anime_title or 'No Anime'}"
-    
+        if self.post_type == "thought":
+            return f"{self.author.username} - Thought"
+
+        return f"{self.author.username} - {self.anime_title or 'Image Post'}"
 
 
 class PostLike(models.Model):

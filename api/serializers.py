@@ -155,36 +155,57 @@ from .models import Post
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source='author.username', read_only=True)
     author_pfp = serializers.ImageField(source='author.profile_image', read_only=True)
-    likes_count = serializers.SerializerMethodField()
-    is_liked = serializers.SerializerMethodField()
-    comments_count = serializers.SerializerMethodField()
-    views_count = serializers.SerializerMethodField()
 
-    
     author_user_id = serializers.IntegerField(
         source='author.user.id',
         read_only=True
     )
 
-    author_username = serializers.CharField(
-        source='author.username',
-        read_only=True
-    )
+    likes_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
+    views_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
         fields = [
-            'author_user_id',      # 🔥 THIS
-            'author_username', 
-            'id', 'author', 'author_username', 'author_pfp',
-            'image', 'caption', 'anime_id', 'anime_title',
-            'privacy', 'created_at',
+            'author_user_id',
+            'author_username',
+            'id',
+            'author',
+            'author_pfp',
+            'post_type',          # 🔥 NEW FIELD
+            'image',
+            'caption',
+            'anime_id',
+            'anime_title',
+            'privacy',
+            'created_at',
             "likes_count",
             "is_liked",
             "comments_count",
             "views_count",
         ]
+
         read_only_fields = ['author', 'created_at']
+
+    # 🔥 VALIDATION FOR IMAGE / THOUGHT POSTS
+    def validate(self, data):
+        post_type = data.get("post_type", "image")
+        image = data.get("image")
+        caption = data.get("caption")
+
+        if post_type == "image" and not image:
+            raise serializers.ValidationError(
+                {"image": "Image is required for image posts."}
+            )
+
+        if post_type == "thought" and not caption:
+            raise serializers.ValidationError(
+                {"caption": "Text is required for thought posts."}
+            )
+
+        return data
 
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user.profile
@@ -194,27 +215,30 @@ class PostSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         request = self.context.get('request')
+
         if request:
-            # Post image
             if data.get('image'):
                 data['image'] = request.build_absolute_uri(data['image'])
-            # Author PFP
+
             if data.get('author_pfp'):
                 data['author_pfp'] = request.build_absolute_uri(data['author_pfp'])
+
         return data
-    
+
     def get_likes_count(self, obj):
         return obj.likes.count()
 
     def get_is_liked(self, obj):
         request = self.context.get("request")
+
         if request is None or request.user.is_anonymous:
             return False
+
         return obj.likes.filter(user=request.user).exists()
-    
+
     def get_comments_count(self, obj):
         return obj.comments.count()
-    
+
     def get_views_count(self, obj):
         return obj.views.count()
 

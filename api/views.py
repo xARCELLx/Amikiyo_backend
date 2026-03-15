@@ -642,9 +642,20 @@ class PostCreateView(generics.CreateAPIView):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user.profile)
+    def get_serializer_context(self):
+        """
+        Ensures serializer has access to request
+        (needed for absolute URLs and like checks)
+        """
+        context = super().get_serializer_context()
+        context["request"] = self.request
+        return context
 
+    def perform_create(self, serializer):
+        """
+        Automatically attach the author's profile
+        """
+        serializer.save(author=self.request.user.profile)
 
 # ====================== MY POSTS — FULL URL SUPPORT ======================
 @api_view(['GET'])

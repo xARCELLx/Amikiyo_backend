@@ -104,7 +104,5 @@ urlpatterns = [
 
 ]
 
-# THIS IS THE ONLY THING THAT WAS MISSING — ADD THIS AT THE END
-# Serves media files (profile pics, post images) during development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
