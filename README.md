@@ -1,135 +1,259 @@
-# Anime Social Platform Backend API
+# Amikiyo Backend — Social Platform API
 
-Backend system built with **Python and Django** using **Django REST Framework** to power a mobile social media application.
+A scalable backend system built using **Python and Django** with **Django REST Framework** to power a modern mobile social media platform.
 
-The backend provides REST APIs for user management, posts, social interactions, messaging, groups, and story features used by a Flutter mobile client.
+This backend provides secure REST APIs used by a **Flutter mobile client** and supports user interactions such as posting, messaging, groups, and story sharing.
+
+The project demonstrates backend system design including authentication, social graph management, media handling, and modular API architecture.
 
 ---
 
-## Tech Stack
+# System Architecture
+
+```
+Flutter Mobile Application
+            │
+            │  REST API Requests
+            ▼
+Django REST Backend (Containerized with Docker)
+            │
+            ├── Authentication & User Management
+            ├── Social Graph (Follow System)
+            ├── Content System (Posts & Comments)
+            ├── Messaging System
+            ├── Groups & Communities
+            └── Stories System
+```
+
+The backend is fully containerized using Docker for reproducible environments and easier deployment.
+
+---
+
+# Technology Stack
+
+### Backend Framework
 
 * Python
 * Django
 * Django REST Framework
-* REST API Architecture
-* JWT Authentication
-* Media Storage
-* Real-time Messaging Integration
-* Cloud-ready backend architecture
+
+### Authentication
+
+* JWT Authentication (SimpleJWT)
+
+### Infrastructure & Deployment
+
+* Docker Containerization
+* Gunicorn WSGI Server
+
+### Cloud & Integrations
+
+* Firebase Admin SDK
+* Google Cloud Storage / Firestore
+
+### Other Tools
+
+* Pillow (image handling)
+* Python Decouple (environment management)
 
 ---
 
-## Core Features
+# Core Backend Modules
 
-### User Management
+## User Management
 
-* User registration
-* Profile creation and management
+* User registration and authentication
+* Profile creation and updates
 * Public profile viewing
 * Search users
-* Follow / unfollow users
+* Follow / unfollow system
 * Followers and following lists
-
-### Posts System
-
-* Create posts
-* Delete posts
-* Fetch posts by user
-* Post detail view
-* Like / unlike posts
-* Record post views
-
-### Comments System
-
-* Add comments on posts
-* Fetch comments
-* Delete comments
-
-### Home Feed
-
-* Personalized home feed based on user activity and follows.
-
-### Chat System
-
-* Create or retrieve chat rooms
-* List user chat rooms
-* Messaging backend support
-
-### Groups System
-
-* Create groups
-* Join group requests
-* Approve / reject join requests
-* Add members
-* Remove members
-* Leave group
-* Transfer group admin
-* Update group details
-* Search groups
-
-### Stories System
-
-* Create stories
-* View story feed
-* View individual story
-* Delete story
-* Track story viewers
-* View user's own stories
 
 ---
 
-## API Architecture
+## Posts System
 
-The backend exposes RESTful endpoints for integration with mobile clients.
+* Create media posts
+* Delete posts
+* Retrieve posts by user
+* Post detail endpoint
+* Like / unlike posts
+* Post view tracking
 
-Example endpoints:
+---
+
+## Comments System
+
+* Add comments to posts
+* Retrieve post comments
+* Delete comments
+
+---
+
+## Personalized Feed
+
+* Dynamic home feed generation
+* Content based on user activity and follow relationships
+
+---
+
+## Messaging System
+
+* Chat room creation
+* Retrieve existing conversations
+* List user chat rooms
+* Backend support for real-time messaging integration
+
+---
+
+## Groups & Communities
+
+* Create community groups
+* Send join requests
+* Approve / reject requests
+* Add or remove members
+* Leave groups
+* Transfer group ownership
+* Update group information
+* Search public groups
+
+---
+
+## Stories System
+
+* Create temporary stories
+* View story feed
+* Track story viewers
+* View user's stories
+* Delete stories
+
+---
+
+# Example API Endpoints
 
 ```
 /users/
-/posts/
-/home-feed/
+/profiles/<id>/
 /profiles/search/
+
+/posts/
+/posts/<post_id>/like/
+/posts/<post_id>/comments/
+
+/home-feed/
+
 /chat/get-or-create/
+/chat/my/
+
 /groups/create/
+/groups/<group_id>/
+
 /story/create/
+/story/feed/
 ```
 
 ---
 
-## Project Purpose
+# Running the Project Locally
 
-This backend powers a **mobile social media platform for anime communities** where users can:
-
-* Share posts and media
-* Follow other users
-* Chat with friends
-* Create groups
-* Share temporary stories
-
----
-
-## Repository Structure
+### 1. Clone the Repository
 
 ```
-api/
-views.py
-models.py
-serializers.py
-urls.py
+git clone https://github.com/xARCELLx/Amikiyo_backend.git
+cd Amikiyo_backend
+```
+
+### 2. Install Dependencies
+
+```
+pip install -r requirements.txt
+```
+
+### 3. Run the Development Server
+
+```
+python manage.py runserver
+```
+
+Server will start at:
+
+```
+http://127.0.0.1:8000
 ```
 
 ---
 
-## Future Improvements
+# Running with Docker
 
-* AI-powered recommendation system
-* Content moderation tools
-* Advanced analytics
-* Real-time notifications
+The backend is containerized using Docker for consistent development and deployment environments.
+
+### Build the container
+
+```
+docker build -t amikiyo-backend .
+```
+
+### Run the container
+
+```
+docker run -p 8000:8000 amikiyo-backend
+```
+
+### Using Docker Compose
+
+```
+docker compose up --build
+```
+
+This starts the backend service inside a container.
 
 ---
 
-## Author
+# Repository Structure
 
-Ayush Rawat
-Full Stack Developer (Flutter + Django)
+```
+Amikiyo_backend
+│
+├── api/
+│   ├── models.py
+│   ├── serializers.py
+│   ├── views.py
+│   ├── urls.py
+│   └── migrations/
+│
+├── amikiyo_backend/
+│   ├── settings.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   └── asgi.py
+│
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── manage.py
+└── README.md
+```
+
+---
+
+# Future Improvements
+
+Planned enhancements for the backend system include:
+
+* AI powered content recommendation
+* Automated content moderation
+* Real time notifications
+* Advanced analytics and engagement tracking
+
+---
+
+# Author
+
+**Ayush Rawat**
+
+Full Stack Developer specializing in:
+
+* Flutter Mobile Development
+* Django Backend Systems
+* REST API Architecture
+* Containerized Backend Deployment
