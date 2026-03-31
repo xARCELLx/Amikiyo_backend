@@ -27,7 +27,9 @@ from .models import Story, StoryView
 from .serializers import StorySerializer
 from django.utils import timezone
 from datetime import timedelta
-
+from api.services.notification_service import notify_like
+from api.services.notification_service import notify_comment
+from api.services.notification_service import notify_follow
 
 from .serializers import (
     CreateGroupSerializer,
@@ -813,6 +815,8 @@ class MyChatRooms(APIView):
 
 
 
+
+
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -827,8 +831,22 @@ def follow_user(request, user_id):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # 🔥 CHECK IF ALREADY FOLLOWING (IMPORTANT)
+        if target in me.following.all():
+            return Response({
+                'followed': True,
+                'followers_count': target.followers.count()
+            }, status=200)
+
+        # ✅ FOLLOW
         me.following.add(target)
         target.followers.add(me)
+
+        # 🔥 TRIGGER NOTIFICATION
+        notify_follow(
+            sender=request.user,
+            receiver=target.user
+        )
 
         return Response({
             'followed': True,
@@ -913,24 +931,35 @@ class FollowingList(APIView):
 
 
 
+
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def like_post(request, post_id):
+    user = request.user
+
     try:
         post = Post.objects.get(id=post_id)
     except Post.DoesNotExist:
         return Response({"detail": "Post not found"}, status=404)
 
     like, created = PostLike.objects.get_or_create(
-        user=request.user,
+        user=user,
         post=post
     )
+
+    # 🔥 ONLY TRIGGER NOTIFICATION IF NEW LIKE
+    if created:
+        notify_like(
+            sender=user,
+            post=post
+        )
 
     return Response({
         "liked": True,
         "likes_count": post.likes.count()
     }, status=200)
-
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -970,22 +999,34 @@ def get_comments(request, post_id):
     return Response(serializer.data, status=200)
 
 
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def add_comment(request, post_id):
+    user = request.user
+
     try:
         post = Post.objects.get(id=post_id)
     except Post.DoesNotExist:
         return Response({"detail": "Post not found"}, status=404)
 
     text = request.data.get("text", "").strip()
+
     if not text:
         return Response({"detail": "Comment cannot be empty"}, status=400)
 
+    # ✅ CREATE COMMENT
     comment = PostComment.objects.create(
-        user=request.user,
+        user=user,
         post=post,
         text=text
+    )
+
+    # 🔥 TRIGGER NOTIFICATION
+    notify_comment(
+        sender=user,
+        post=post,
+        comment_text=text
     )
 
     serializer = PostCommentSerializer(

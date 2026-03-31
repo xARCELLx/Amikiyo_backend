@@ -7,6 +7,8 @@ services:
     command: gunicorn amikiyo_backend.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - .:/app
+      - ./db.sqlite3:/app/db.sqlite3
+      - ./media:/app/media
     ports:
       - "8000:8000"
     restart: always

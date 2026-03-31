@@ -349,5 +349,98 @@ class GroupMember(models.Model):
 
     def __str__(self):
         return f"{self.user} in {self.group} ({self.status})"
+    
+
+
+from django.conf import settings
+from django.db import models
+
+
+class Notification(models.Model):
+
+    NOTIFICATION_TYPES = [
+        ("follow", "Follow"),
+        ("like", "Like"),
+        ("comment", "Comment"),
+        ("reply", "Reply"),
+        ("dm", "Direct Message"),
+        ("post", "New Post"),
+        ("thought", "New Thought"),
+    ]
+
+    # ───────── CORE USERS ─────────
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications"
+    )
+
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_notifications"
+    )
+
+    # ───────── TYPE ─────────
+
+    notification_type = models.CharField(
+        max_length=20,
+        choices=NOTIFICATION_TYPES
+    )
+
+    # ───────── OPTIONAL TARGETS ─────────
+
+    # Used for like/comment/thought/post
+    post = models.ForeignKey(
+        "Post",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications"
+    )
+
+    # Used for replies (future safe)
+    comment_id = models.IntegerField(
+        null=True,
+        blank=True
+    )
+
+    # Used for DM
+    chat_room_id = models.UUIDField(
+        null=True,
+        blank=True
+    )
+
+    # Used for follow/profile navigation
+    target_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="targeted_notifications"
+    )
+
+    # ───────── CONTENT ─────────
+
+    text = models.CharField(max_length=255, blank=True)
+
+    # ───────── STATE ─────────
+
+    is_read = models.BooleanField(default=False)
+
+    # ───────── TIME ─────────
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["recipient"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.sender} → {self.recipient} ({self.notification_type})"
 
 
