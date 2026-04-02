@@ -47,7 +47,12 @@ from .views import (
     DeleteStory,
     StoryFeedView,
     MyStoriesView,
-    StoryViewers
+    StoryViewers,
+    get_notifications,
+    mark_notification_read,
+    mark_all_notifications_read,
+    unread_notification_count,
+    save_device_token
    
    
 )
@@ -97,6 +102,11 @@ urlpatterns = [
     path("story/<int:story_id>/view/", ViewStory.as_view()),
     path("story/<int:story_id>/delete/", DeleteStory.as_view()),
     path("story/<int:story_id>/viewers/", StoryViewers.as_view()),
+    path("notifications/", get_notifications),
+    path("notifications/unread-count/", unread_notification_count),
+    path("notifications/<int:notification_id>/read/", mark_notification_read),
+    path("notifications/read-all/", mark_all_notifications_read),
+    path("notifications/save-token/", save_device_token),
 
 
 

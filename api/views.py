@@ -14,15 +14,15 @@ from .models import Profile, Post,User,Post, PostLike
 from .serializers import ProfileSerializer, PostSerializer,FeedPostSerializer
 from firebase_admin import auth
 
-from .models import ChatRoom, User,PostComment,PostView
-from .serializers import ChatRoomSerializer,PostCommentSerializer
+from .models import ChatRoom, User,PostComment,PostView,Notification
+from .serializers import ChatRoomSerializer,PostCommentSerializer,NotificationSerializer
 
 
 from django.db.models import Count, F, ExpressionWrapper, FloatField,Q,DurationField
 from django.db.models.functions import Now
 from django.utils.timezone import now
 from django.db.models.functions import Now,Cast
-from .models import GroupChat, GroupMember
+from .models import GroupChat, GroupMember,DeviceToken
 from .models import Story, StoryView
 from .serializers import StorySerializer
 from django.utils import timezone
@@ -1301,6 +1301,8 @@ class DeleteStory(APIView):
         
 
 class StoryViewers(APIView):
+
+    
     permission_classes = [IsAuthenticated]
 
     def get(self, request, story_id):
@@ -1326,3 +1328,82 @@ class StoryViewers(APIView):
             })
 
         return Response(data)
+    
+
+
+@api_view(["GET"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_notifications(request):
+    notifications = Notification.objects.filter(
+        receiver=request.user
+    ).order_by("-created_at")[:50]  # limit for performance
+
+    serializer = NotificationSerializer(
+        notifications,
+        many=True,
+        context={"request": request}
+    )
+
+    return Response(serializer.data)
+
+
+
+@api_view(["POST"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def mark_notification_read(request, notification_id):
+    try:
+        notification = Notification.objects.get(
+            id=notification_id,
+            receiver=request.user
+        )
+    except Notification.DoesNotExist:
+        return Response({"detail": "Not found"}, status=404)
+
+    notification.is_read = True
+    notification.save()
+
+    return Response({"status": "read"})
+
+
+@api_view(["POST"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def mark_all_notifications_read(request):
+    Notification.objects.filter(
+        receiver=request.user,
+        is_read=False
+    ).update(is_read=True)
+
+    return Response({"status": "all read"})
+
+
+@api_view(["GET"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def unread_notification_count(request):
+    count = Notification.objects.filter(
+        receiver=request.user,
+        is_read=False
+    ).count()
+
+    return Response({"count": count})
+
+
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_device_token(request):
+    token = request.data.get("token")
+
+    if not token:
+        return Response({"error": "Token required"}, status=400)
+
+    DeviceToken.objects.update_or_create(
+        token=token,
+        defaults={"user": request.user}
+    )
+
+    return Response({"status": "saved"})

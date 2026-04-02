@@ -1,41 +1,41 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, List
 from django.contrib.auth import get_user_model
-from api.models import Notification, Post
-from typing import Optional, TYPE_CHECKING
 
-from django.contrib.auth import get_user_model
 from api.models import Notification, Post
+from api.services.push_service import send_push_notification
 
+# ✅ FIX TYPE ISSUE (Pylance safe)
 if TYPE_CHECKING:
-    from django.contrib.auth.models import AbstractUser as User
+    from django.contrib.auth.models import AbstractUser
+    UserType = AbstractUser
 else:
-    User = get_user_model()
-
-
+    UserType = get_user_model()
 
 
 # ───────────────── CORE FUNCTION ─────────────────
 
 def _create_notification(
     *,
-    recipient: User,
-    sender: User,
+    recipient: UserType,
+    sender: UserType,
     notification_type: str,
     text: str = "",
     post: Optional[Post] = None,
     comment_id: Optional[int] = None,
     chat_room_id: Optional[str] = None,
-    target_user: Optional[User] = None,
+    target_user: Optional[UserType] = None,
 ):
     """
-    Central notification creator.
-    Prevents self-notifications.
+    🔥 SINGLE SOURCE OF TRUTH
+    - Creates DB notification
+    - Sends push notification
+    - Prevents self notification
     """
 
     if recipient == sender:
         return None
 
-    return Notification.objects.create(
+    notification = Notification.objects.create(
         recipient=recipient,
         sender=sender,
         notification_type=notification_type,
@@ -46,14 +46,29 @@ def _create_notification(
         target_user=target_user,
     )
 
+    # 🔥 PUSH NOTIFICATION
+    try:
+        send_push_notification(
+            user=recipient,
+            title="Amikiyo",
+            body=text,
+            data={
+                "type": notification_type,
+                "post_id": str(post.id) if post else "",
+                "chat_room_id": str(chat_room_id) if chat_room_id else "",
+            }
+        )
+    except Exception as e:
+        print("Push error:", e)
+
+    return notification
+
 
 # ───────────────── LIKE ─────────────────
 
-def notify_like(sender: User, post: Post):
-    recipient = post.author.user
-
+def notify_like(sender: UserType, post: Post):
     return _create_notification(
-        recipient=recipient,
+        recipient=post.author.user,
         sender=sender,
         notification_type="like",
         post=post,
@@ -63,21 +78,21 @@ def notify_like(sender: User, post: Post):
 
 # ───────────────── COMMENT ─────────────────
 
-def notify_comment(sender: User, post: Post, text: str = ""):
-    recipient = post.author.user
+def notify_comment(sender: UserType, post: Post, comment_text: str):
+    safe_text = (comment_text or "")[:50]
 
     return _create_notification(
-        recipient=recipient,
+        recipient=post.author.user,
         sender=sender,
         notification_type="comment",
         post=post,
-        text=f"{sender.username} commented: {text[:50]}",
+        text=f"{sender.username} commented: {safe_text}",
     )
 
 
 # ───────────────── REPLY ─────────────────
 
-def notify_reply(sender: User, comment_user: User, comment_id: int):
+def notify_reply(sender: UserType, comment_user: UserType, comment_id: int):
     return _create_notification(
         recipient=comment_user,
         sender=sender,
@@ -89,7 +104,7 @@ def notify_reply(sender: User, comment_user: User, comment_id: int):
 
 # ───────────────── FOLLOW ─────────────────
 
-def notify_follow(sender: User, target_user: User):
+def notify_follow(sender: UserType, target_user: UserType):
     return _create_notification(
         recipient=target_user,
         sender=sender,
@@ -101,10 +116,11 @@ def notify_follow(sender: User, target_user: User):
 
 # ───────────────── NEW POST ─────────────────
 
-def notify_new_post(sender: User, followers_queryset, post: Post):
-    """
-    Notify followers about new post
-    """
+def notify_new_post(
+    sender: UserType,
+    followers_queryset,
+    post: Post
+) -> List[Notification]:
 
     notifications = []
 
@@ -128,7 +144,12 @@ def notify_new_post(sender: User, followers_queryset, post: Post):
 
 # ───────────────── NEW THOUGHT ─────────────────
 
-def notify_new_thought(sender: User, followers_queryset, post: Post):
+def notify_new_thought(
+    sender: UserType,
+    followers_queryset,
+    post: Post
+) -> List[Notification]:
+
     notifications = []
 
     for follower in followers_queryset:
@@ -151,11 +172,18 @@ def notify_new_thought(sender: User, followers_queryset, post: Post):
 
 # ───────────────── DM ─────────────────
 
-def notify_dm(sender: User, receiver: User, chat_room_id, message: str):
+def notify_dm(
+    sender: UserType,
+    receiver: UserType,
+    chat_room_id: str,
+    message: str
+):
+    safe_msg = (message or "")[:50]
+
     return _create_notification(
         recipient=receiver,
         sender=sender,
         notification_type="dm",
         chat_room_id=chat_room_id,
-        text=f"{sender.username}: {message[:50]}",
+        text=f"{sender.username}: {safe_msg}",
     )

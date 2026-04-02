@@ -6,8 +6,7 @@ from .models import GroupChat, GroupMember
 
 
 from rest_framework import serializers
-from .models import Story
-
+from .models import Story,Notification
 
 class StorySerializer(serializers.ModelSerializer):
 
@@ -433,3 +432,30 @@ class CreateGroupSerializer(serializers.Serializer):
 
         return value
 
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source="sender.username", read_only=True)
+    sender_profile_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = [
+            "id",
+            "type",
+            "message",
+            "is_read",
+            "created_at",
+            "sender_username",
+            "sender_profile_image",
+        ]
+
+    def get_sender_profile_image(self, obj):
+        request = self.context.get("request")
+
+        profile = getattr(obj.sender, "profile", None)
+
+        if profile and profile.profile_image:
+            return request.build_absolute_uri(profile.profile_image.url)
+
+        return None
