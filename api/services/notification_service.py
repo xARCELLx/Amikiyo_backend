@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from api.models import Notification, Post
 from api.services.push_service import send_push_notification
 
-# ✅ FIX TYPE ISSUE (Pylance safe)
+# ✅ TYPE SAFE (Pylance friendly)
 if TYPE_CHECKING:
     from django.contrib.auth.models import AbstractUser
     UserType = AbstractUser
@@ -27,9 +27,11 @@ def _create_notification(
 ):
     """
     🔥 SINGLE SOURCE OF TRUTH
+
     - Creates DB notification
     - Sends push notification
     - Prevents self notification
+    - Adds deep-link payload (VERY IMPORTANT)
     """
 
     if recipient == sender:
@@ -46,20 +48,37 @@ def _create_notification(
         target_user=target_user,
     )
 
-    # 🔥 PUSH NOTIFICATION
+    # ───────────── BUILD DATA PAYLOAD ─────────────
+
+    data_payload = {
+        "type": notification_type,
+        "notification_id": str(notification.id),
+    }
+
+    # attach optional data
+    if post:
+        data_payload["post_id"] = str(post.id)
+
+    if chat_room_id:
+        data_payload["chat_room_id"] = str(chat_room_id)
+
+    if target_user:
+        data_payload["user_id"] = str(target_user.id)
+
+    if comment_id:
+        data_payload["comment_id"] = str(comment_id)
+
+    # ───────────── PUSH NOTIFICATION ─────────────
+
     try:
         send_push_notification(
             user=recipient,
             title="Amikiyo",
             body=text,
-            data={
-                "type": notification_type,
-                "post_id": str(post.id) if post else "",
-                "chat_room_id": str(chat_room_id) if chat_room_id else "",
-            }
+            data=data_payload,  # 🔥 THIS IS THE MAGIC
         )
     except Exception as e:
-        print("Push error:", e)
+        print("🚨 Push error:", e)
 
     return notification
 

@@ -18,6 +18,7 @@ def send_push_notification(user, title, body, data=None):
     )
 
     if not tokens:
+        print("⚠️ No tokens found for user")
         return
 
     message = messaging.MulticastMessage(
@@ -30,12 +31,13 @@ def send_push_notification(user, title, body, data=None):
     )
 
     try:
-        response = messaging.send_multicast(message)
+        # ✅ FIXED METHOD (IMPORTANT)
+        response = messaging.send_each_for_multicast(message)
 
         print("✅ Push success:", response.success_count)
         print("❌ Push failed:", response.failure_count)
 
-        # 🔥 REMOVE INVALID TOKENS (VERY IMPORTANT)
+        # 🔥 REMOVE INVALID TOKENS
         if response.failure_count > 0:
             failed_tokens = []
 
