@@ -1336,7 +1336,7 @@ class StoryViewers(APIView):
 @permission_classes([IsAuthenticated])
 def get_notifications(request):
     notifications = Notification.objects.filter(
-        receiver=request.user
+        recipient=request.user
     ).order_by("-created_at")[:50]  # limit for performance
 
     serializer = NotificationSerializer(
@@ -1350,22 +1350,21 @@ def get_notifications(request):
 
 
 @api_view(["POST"])
-@authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def mark_notification_read(request, notification_id):
     try:
         notification = Notification.objects.get(
             id=notification_id,
-            receiver=request.user
+            recipient=request.user   # ✅ FIXED
         )
+
+        notification.is_read = True
+        notification.save()
+
+        return Response({"success": True})
+
     except Notification.DoesNotExist:
-        return Response({"detail": "Not found"}, status=404)
-
-    notification.is_read = True
-    notification.save()
-
-    return Response({"status": "read"})
-
+        return Response({"error": "Not found"}, status=404)
 
 @api_view(["POST"])
 @authentication_classes([TokenAuthentication])

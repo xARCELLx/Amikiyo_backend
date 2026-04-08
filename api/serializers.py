@@ -434,28 +434,50 @@ class CreateGroupSerializer(serializers.Serializer):
 
 
 
+from rest_framework import serializers
+from api.models import Notification
+
+
+from rest_framework import serializers
+from api.models import Notification
+
+
 class NotificationSerializer(serializers.ModelSerializer):
-    sender_username = serializers.CharField(source="sender.username", read_only=True)
-    sender_profile_image = serializers.SerializerMethodField()
+    sender_username = serializers.CharField(
+        source="sender.username",
+        read_only=True
+    )
+
+    sender_pfp = serializers.SerializerMethodField()
+
+    sender_id = serializers.IntegerField(
+                    source="sender.id",
+                    read_only=True
+                )
 
     class Meta:
         model = Notification
         fields = [
             "id",
-            "type",
-            "message",
+            "notification_type",
+            "text",
+            "post",
+            "chat_room_id",
             "is_read",
             "created_at",
             "sender_username",
-            "sender_profile_image",
+            "sender_pfp",
+            "sender_id"
         ]
 
-    def get_sender_profile_image(self, obj):
+    def get_sender_pfp(self, obj):
         request = self.context.get("request")
 
-        profile = getattr(obj.sender, "profile", None)
-
-        if profile and profile.profile_image:
-            return request.build_absolute_uri(profile.profile_image.url)
+        try:
+            image = obj.sender.profile.profile_image
+            if image and request:
+                return request.build_absolute_uri(image.url)
+        except:
+            pass
 
         return None
